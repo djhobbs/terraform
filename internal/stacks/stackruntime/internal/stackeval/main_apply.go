@@ -99,9 +99,7 @@ func ApplyPlan(ctx context.Context, config *stackconfig.Config, rawPlan []*anypb
 		// can error rather than deadlock if something goes wrong and causes
 		// us to try to depend on a result that isn't coming.
 		results, begin := ChangeExec(ctx, func(ctx context.Context, reg *ChangeExecRegistry[*Main]) {
-			for _, elem := range plan.Components.Elems() {
-				addr := elem.K
-				componentInstPlan := elem.V
+			for addr, componentInstPlan := range plan.Components.All() {
 				action := componentInstPlan.PlannedAction
 				dependencyAddrs := componentInstPlan.Dependencies
 				dependentAddrs := componentInstPlan.Dependents
@@ -183,7 +181,7 @@ func ApplyPlan(ctx context.Context, config *stackconfig.Config, rawPlan []*anypb
 						if depCount := waitForComponents.Len(); depCount != 0 {
 							log.Printf("[TRACE] stackeval: %s waiting for its predecessors (%d) to complete", addr, depCount)
 						}
-						for _, waitComponentAddr := range waitForComponents.Elems() {
+						for waitComponentAddr := range waitForComponents.All() {
 							if stack := main.Stack(ctx, waitComponentAddr.Stack, ApplyPhase); stack != nil {
 								if component := stack.Component(ctx, waitComponentAddr.Item); component != nil {
 									span.AddEvent("awaiting predecessor", trace.WithAttributes(
@@ -311,7 +309,7 @@ func checkApplyTimeVariables(plan *stackplan.Plan, providedValues map[stackaddrs
 
 	ret := make(map[stackaddrs.InputVariable]cty.Value, len(plan.RootInputValues)+plan.ApplyTimeInputVariables.Len())
 	maps.Copy(ret, plan.RootInputValues)
-	for _, varAddr := range plan.ApplyTimeInputVariables.Elems() {
+	for varAddr := range plan.ApplyTimeInputVariables.All() {
 		applyTimeVal := providedValues[varAddr]
 		if applyTimeVal.Value == cty.NilVal || applyTimeVal.Value.IsNull() {
 			diags = diags.Append(tfdiags.Sourceless(
